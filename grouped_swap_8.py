@@ -1,4 +1,4 @@
-import pdb, IPython
+import pdb
 import torch
 import numpy as np
 from dataclasses import dataclass
@@ -216,7 +216,7 @@ class PermuteDecomposer:
     
     def find_optimal_sequence(self, source_perm: List[int], target_perm: List[int], 
                             tensor_shape: List[int]) -> Tuple[List[SwapOperation], float]:
-        """Find optimal sequence of swaps using Dijkstra's algorithm."""
+        """Find optimal sequence of swaps using Dijkstra's algorithm with pruning."""
         # Initialize states
         source_state = PermuteState(source_perm)
         target_tuple = tuple(target_perm)
@@ -224,6 +224,9 @@ class PermuteDecomposer:
         # Priority queue: (cost, state, path)
         pq = [(0, source_state, [])]
         visited = set()
+        
+        # Track best known cost to target (for pruning)
+        best_cost_to_target = float('inf')
         
         print(f"Starting search from {source_state} to {target_perm}")
         print(f"Tensor shape: {tensor_shape}")
@@ -233,6 +236,10 @@ class PermuteDecomposer:
         while pq:
             current_cost, current_state, path = heapq.heappop(pq)
             
+            # Pruning: skip if this path cannot beat the best known solution
+            if current_cost >= best_cost_to_target:
+                continue
+            
             state_tuple = current_state.to_tuple()
             if state_tuple in visited:
                 continue
@@ -240,6 +247,7 @@ class PermuteDecomposer:
             
             # Check if we reached the target
             if state_tuple == target_tuple:
+                best_cost_to_target = current_cost
                 print(f"\nFound optimal path with cost {current_cost}:")
                 for i, swap in enumerate(path):
                     print(f"  Step {i+1}: {swap}")
@@ -253,9 +261,15 @@ class PermuteDecomposer:
             
             for swap, next_state in possible_swaps:
                 next_cost = current_cost + swap.cost
-                new_path = path + [swap]
                 
-                print(f"    -> {next_state} (swap at pos {swap.left_pos}, cost: {swap.cost})")
+                print(f"{iteration*'-'}-> {next_state} (cost: {swap.cost}, total: {next_cost})")
+                
+                # Pruning: skip if this path is already too expensive
+                if next_cost >= best_cost_to_target:
+                    print('**Pruned**')
+                    continue
+                
+                new_path = path + [swap]
                 
                 heapq.heappush(pq, (next_cost, next_state, new_path))
             
@@ -308,10 +322,10 @@ def test_decomposer():
     
     result1 = decomposer.decompose_permute(tensor1, target_perm1)
     expected1 = tensor1.permute(target_perm1)
+    pdb.set_trace()
     
     print(f"\nVerification: torch.allclose(result, expected) = {torch.allclose(result1, expected1)}")
     print(f"Max difference: {(result1 - expected1).abs().max().item()}")
-    return
     
     # Test case 2: More complex permutation
     print("\n" + "=" * 80)
