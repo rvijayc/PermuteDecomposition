@@ -1,0 +1,106 @@
+Write a program that optimally decomposes torch.permute of a *contiguous* torch tensor of *four dimensions* as sequence of the following basic ops using backtracking. Memoization and Cost Pruning are optional since the problem size small.
+
+    - matrix_transpose(tensor): this will take a *3D torch tensor* of shape [d2, d1, d0] (with d2 fast changing) and swaps d2 and d1 (i.e., x.transpose(0, 1))
+    - block_transpose(tensor): this will take a *4D torch tensor* of shape [d3, d2, d1, d0] (with d3 fast changing) and swaps d2 and d1 (i.e., x.transpose(1, 2)).
+    - “view-like” ops such as squeeze, unsqueeze and view. These can be strategically used to map any tensor such that it fits one of the basic operations above.
+
+You should *only* use the above operations and nothing else. Note that any of the dimensions d0-d3 could be one to accommodate tensors with smaller number of dimensions. Also, note that “reshape" isn’t allowed as they tensor *must stay contiguous* through the sequence. 
+
+The optimal decomposition must take into account the cost of each op which are provided using the following functions:
+
+    - matrix_transpose_cost(tensor) for matrix_transpose.
+    - block_transpose_cost(tensor) for block_transpose.
+    - all view operations are free (zero-cost) as they don’t involve any actual data movement (under *contiguous* assumption)
+
+For now, you can assume that matrix_transpose is twice as efficient as block_transpose for the same number of bytes processed, but the algorithm should work for the general case.
+
+For example, the optimal permutation (3, 0, 1, 2) of a 4D tensor `x` of shape [2, 3, 4, 5] can be achieved using the following sequence:
+
+    - x.view(24, 5) => shape = [24, 5] (cost = 0)
+    - x.unsqueeze(-1) => shape = [24, 5, 1] (cost = 0)
+    - matrix_transpose(x) => shape [5, 24, 1] (cost = 1x)
+    - x.view(5, 2, 3, 4) => shape [5, 2, 3, 4] (cost = 0)
+
+Total Cost = 1x
+
+The program must have:
+    
+    - A function or method that returns the optimal sequence (function, arguments) for a given tensor and permutation that can be used to invoke the same sequence at a later time.
+    - A function or method that returns optimal sequences for all possible 4D permutations of a tensor as a dictionary keyed by the permutation. When generating this, make sure to test each permutation against torch.permute for result correctness.
+
+Please also generate a few test cases for optimality (expected optimal sequence vs actual). I have included one in my prompt.
+
+I would prefer an object oriented approach to this problem.
+
+---
+
+I would like to explore the use of backtracking with memoization and cost pruning to optimally decompose torch.permute of a *contiguous* torch tensor of *arbitrary dimensions* as sequence of the following basic ops using backtracking.
+
+    - matrix_transpose(tensor): this will take a *3D torch tensor* of shape [d2, d1, d0] (with d2 fast changing) and swaps d2 and d1 (i.e., x.transpose(0, 1))
+    - block_transpose(tensor): this will take a *4D torch tensor* of shape [d3, d2, d1, d0] (with d3 fast changing) and swaps d2 and d1 (i.e., x.transpose(1, 2)).
+    - “view-like” ops such as squeeze, unsqueeze and view. These can be strategically used to map any tensor such that it fits one of the basic operations above.
+
+You should *only* use the above operations and nothing else. Note that any of the dimensions d0-d3 could be one to accommodate tensors with smaller number of dimensions. Also, note that “reshape" isn’t allowed as they tensor *must stay contiguous* through the sequence. 
+
+The optimal decomposition must take into account the cost of each op which are provided using the following functions:
+
+    - matrix_transpose_cost(tensor) for matrix_transpose.
+    - block_transpose_cost(tensor) for block_transpose.
+    - all view operations (view, squeeze, unsqueeze) are assumed to have a fixed cost of 1.
+
+For now, you can assume that block_transpose cost is the number of bytes processed while matrix_transpose cost is half the number of bytes processed, although the algorithm must work for the general case.
+
+For example, an optimal permutation (3, 0, 1, 2) of a 4D tensor `x` of shape [2, 3, 4, 5] and dtype=int8 can be achieved using the following sequence:
+
+    - x.view(24, 5) => shape = [24, 5] (cost = 1)
+    - x.unsqueeze(-1) => shape = [24, 5, 1] (cost = 1)
+    - matrix_transpose(x) => shape [5, 24, 1] (cost = 0.5 x 5 x 24 = 60)
+    - x.view(5, 2, 3, 4) => shape [5, 2, 3, 4] (cost = 1)
+
+Total Cost = 63
+
+Please note that memoization and cost-pruning can enforce terminating the recursion tree.
+
+The program must have:
+    
+    - A function or method that returns the optimal sequence (function, arguments) for a given tensor and permutation that can be used to invoke the same sequence at a later time.
+    - A function or method that returns optimal sequences for all possible permutations of a tensor as a dictionary keyed by the permutation. When generating this, make sure to test each permutation against torch.permute for result correctness.
+
+Please also generate a few test cases for optimality (expected optimal sequence vs actual). I have included one in my prompt. I am mostly interested in 4D tensors for test cases.
+
+I would prefer an object oriented approach to this problem.
+
+---
+
+The algorithm is taking a long time because you are trying out all the possible factorizations. I think it will help if you restrict the factorization "boundaries" to match the original tensor dimensions. Here is an example:
+
+[2, 3, 4, 5] => [24, 5] is valid because it respects the original dimension boundaries (i.e., it is the same as [[2, 3, 4], [5]]
+[2, 3, 4, 5] => [8, 3, 5] is invalid because it ignores the original dimension boundaries.
+
+Can you reduce the number of factorizations to the valid ones as I mentioned above?
+
+---
+
+I would like to explore the problem of optimal decomposition of a torch.permute operation of an arbitrary dimension *contigous* torch tensor in terms of basic transpose operations. An arbitrary permute can be broken down into swaps of adjacent dimensions that can be implemented as transpose operations. For example, a permute of (3, 0, 1, 2) can be implemented in many ways of which a couple of possibilities are shown below:
+
+1. Bubble swap of *adjacent* dimensions: (0, 1, 2, 3) -> (0, 1, 3, 2) -> (0, 3, 1, 2) -> (3, 0, 1, 2)
+2. Swapping of *grouped and adjacent* dimensions: (0, 1, 2, 3) -> ((0, 1, 2), 3) -> (3, (0, 1, 2)) -> (3, 0, 1, 2)
+
+In the second case, the operation "-> ((0, 1, 2), 3) -> (3, (0, 1, 2)) -> (3, 0, 1, 2) ->" involves a single transpose operation with added view functions to group dimensions. The second case is likely more efficient than the first one.
+
+In addition, there are two types of transposes involved:
+
+1. matrix_transpose => swaps fastest changing dimensions. For example: (d0, d1, d2) => (d0, d2, d1) where d2 is the fastest changing dimension in the original tensor.
+2. block_transpose => swaps intermediate dimensions. For example (d0, d1, d2, d3) => (d0, d2, d1, d3) where d3 is the fastest changing dimension in the original tensor.
+
+Lets assume that a matrix_transpose operation has a cost c1 times the number of bytes processed by the operation and a block_transpose operation has a cost of c2 times the number of bytes transferred.
+
+I would like to design an optimal algorithm in terms of cost that finds the best sequence to implement a specific permutation using either single dimension or grouped dimension swaps with the following assumptions:
+
+1. Only swaps of adjacent dimensions are allowed. "Adjacent" applies to both single or grouped dimension swaps.
+    - For example, the grouped swap ((0, 1), (2, 3)) -> ((3, 2), (0, 1)) is a valid adjacent dimension swap.
+2. The tensor should remain contiguous througout the process.
+
+Any graph based algorithm (shortest path search, DP, etc.,) is fine. The algorithm should output the optimal swap sequence so that it can be executed at a later time. Add prints to highlight the paths you are exploring with corresponding costs, and add test cases to ensure that the answer you are getting by executing the optimal sequence matches the pytorch reference (torch.permute).
+
+I would prefer an object oriented approach to the solution.
