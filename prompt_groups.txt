@@ -20,4 +20,10 @@ I would like to design an optimal algorithm in terms of cost that finds the best
 
 Any graph based algorithm (shortest path search, DP, etc.,) is fine. The algorithm should output the optimal swap sequence so that it can be executed at a later time. Add prints to highlight the paths you are exploring with corresponding costs, and add test cases to ensure that the answer you are getting by executing the optimal sequence matches the pytorch reference (torch.permute).
 
+The function that "executes" a specific swap must be written in terms of the following operations:
+
+- view operations => to implement "grouping" and "ungrouping" for swaps that use grouping.
+- matrix_transpose(tensor) => that takes a 3D tensor of shape [d0, d1, d2] and swaps the 2 fastest-changing dimensions (d1, d2).
+- block_transpose(tensor) => that takes a 4D tensor of shape [d0, d1, d2, d3] and swaps the middle two dimensions (d1, d2). Here, d3 is the fastest changing dimension.
+
 I would prefer an object oriented approach to the solution.
